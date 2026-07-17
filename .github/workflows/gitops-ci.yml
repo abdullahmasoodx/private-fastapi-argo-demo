@@ -1,0 +1,118 @@
+name: Private FastAPI GitOps CI
+
+on:
+  push:
+    branches:
+      - dev1
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: "Select environment to deploy"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+
+permissions:
+  contents: write
+
+env:
+  IMAGE_NAME: abdullahmasoodx/private-fastapi-argo-demo
+
+jobs:
+  build-test-push-update-git:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 2. Set image tag
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "Image tag: ${GITHUB_SHA::7}"
+
+      - name: 3. Select environment
+        run: |
+          echo "Event name: $GITHUB_EVENT_NAME"
+          echo "Branch name: $GITHUB_REF_NAME"
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "${GITHUB_REF_NAME}" != "main" ]; then
+              echo "Production deployment is only allowed from main branch."
+              exit 1
+            fi
+            echo "DEPLOY_ENV=production" >> $GITHUB_ENV
+            echo "K8S_DIR=k8s/production" >> $GITHUB_ENV
+
+          elif [ "${GITHUB_REF_NAME}" = "dev1" ]; then
+            echo "DEPLOY_ENV=dev" >> $GITHUB_ENV
+            echo "K8S_DIR=k8s/dev" >> $GITHUB_ENV
+
+          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "DEPLOY_ENV=staging" >> $GITHUB_ENV
+            echo "K8S_DIR=k8s/staging" >> $GITHUB_ENV
+
+          else
+            echo "Unsupported branch or event"
+            exit 1
+          fi
+
+      - name: 4. Show selected values
+        run: |
+          echo "Deploy environment: $DEPLOY_ENV"
+          echo "Kubernetes folder: $K8S_DIR"
+          echo "Image: $IMAGE_NAME:$IMAGE_TAG"
+
+      - name: 5. Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 6. Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: 7. Run tests
+        run: |
+          PYTHONPATH=. pytest tests -v
+
+      - name: 8. Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 9. Build Docker image
+        run: |
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+
+      - name: 10. Push Docker image
+        run: |
+          docker push $IMAGE_NAME:$IMAGE_TAG
+
+      - name: 11. Update Kubernetes image tag in Git
+        run: |
+          sed -i "s|image: $IMAGE_NAME:.*|image: $IMAGE_NAME:$IMAGE_TAG|g" $K8S_DIR/deployment.yaml
+          sed -i "s|value: \".*\"|value: \"$IMAGE_TAG\"|2" $K8S_DIR/deployment.yaml
+
+          echo "Updated deployment file:"
+          cat $K8S_DIR/deployment.yaml
+
+      - name: 12. Commit and push GitOps change
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add $K8S_DIR/deployment.yaml
+
+          if git diff --cached --quiet; then
+            echo "No GitOps changes to commit"
+          else
+            git commit -m "Update $DEPLOY_ENV image tag to $IMAGE_TAG [skip ci]"
+            git push
+          fi

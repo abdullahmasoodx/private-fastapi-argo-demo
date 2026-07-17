@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: private-fastapi-demo-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_GITHUB_USERNAME/private-fastapi-argo-demo.git
+    targetRevision: main
+    path: k8s/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: private-demo-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
