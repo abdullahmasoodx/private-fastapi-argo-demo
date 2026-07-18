@@ -4,7 +4,7 @@ metadata:
   name: basic-gitops-service
   namespace: gitops-basic
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: basic-gitops-app
   ports:
