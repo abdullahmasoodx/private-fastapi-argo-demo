@@ -3,12 +3,26 @@ kind: Service
 metadata:
   name: basic-gitops-service
   namespace: gitops-basic
+
+  annotations:
+    service.beta.kubernetes.io/linode-loadbalancer-default-protocol: "http"
+    service.beta.kubernetes.io/linode-loadbalancer-check-type: "http"
+    service.beta.kubernetes.io/linode-loadbalancer-check-path: "/health"
+    service.beta.kubernetes.io/linode-loadbalancer-check-interval: "5"
+    service.beta.kubernetes.io/linode-loadbalancer-check-timeout: "3"
+    service.beta.kubernetes.io/linode-loadbalancer-check-attempts: "2"
+
 spec:
   type: LoadBalancer
+
+  # Keep Cluster for now. Do not use Local while debugging.
+  externalTrafficPolicy: Cluster
+
   selector:
     app: basic-gitops-app
+
   ports:
     - name: http
       protocol: TCP
       port: 80
-      targetPort: http
+      targetPort: 8000
