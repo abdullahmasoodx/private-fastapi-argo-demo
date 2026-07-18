@@ -18,7 +18,7 @@ spec:
       containers:
         - name: basic-gitops-app
           # GitHub Actions replaces this tag after the first successful build.
-          image: abdullahmasoodx/basic-gitops-app:fb62ec9
+          image: abdullahmasoodx/basic-gitops-app:fbb574a
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
