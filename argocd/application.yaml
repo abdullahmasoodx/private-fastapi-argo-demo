@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: basic-gitops-app
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/abdullahmasoodx/private-fastapi-argo-demo.git
+    targetRevision: main
+    path: k8s
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-basic
+
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+
+  # Automatic sync is intentionally disabled for the first lesson.
+  # Later, you can enable it with:
+  #
+  # syncPolicy:
+  #   automated:
+  #     prune: true
+  #     selfHeal: true
+  #   syncOptions:
+  #     - CreateNamespace=true

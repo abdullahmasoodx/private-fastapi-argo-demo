@@ -3,7 +3,5 @@ __pycache__/
 .env
 venv/
 .venv/
-*.log
-Test-kubeconfig.yaml
-kubeconfig.yaml
-.kube/
+.pytest_cache/
+.DS_Store

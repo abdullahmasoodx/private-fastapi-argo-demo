@@ -1,42 +1,140 @@
-# Private FastAPI Argo CD Demo
+# Basic GitOps Starter: GitHub Actions + Docker Hub + Kubernetes + Argo CD
 
-This project is a learning project for:
+This starter project demonstrates the complete beginner GitOps flow:
 
-- FastAPI
-- Pytest
-- Docker
-- Private Docker Hub images
-- Kubernetes
-- Kustomize
-- Argo CD GitOps
-- Private GitHub repo deployment
+1. Push application code to GitHub.
+2. GitHub Actions builds a Docker image.
+3. GitHub Actions pushes the image to Docker Hub.
+4. GitHub Actions updates `k8s/deployment.yaml` with the new image tag.
+5. Argo CD detects the Git change.
+6. You manually sync the application during the first lesson.
+7. Kubernetes deploys the new image.
 
-## Flow
+## Project structure
 
 ```text
-Developer pushes code
-↓
-GitHub Actions runs tests
-↓
-Builds Docker image
-↓
-Pushes image to private Docker Hub repo
-↓
-Updates image tag in Kubernetes YAML
-↓
-Commits YAML change back to GitHub
-↓
-Argo CD detects Git change
-↓
-Argo CD deploys to Kubernetes
+basic-gitops-app/
+├── app/main.py
+├── requirements.txt
+├── Dockerfile
+├── .dockerignore
+├── .github/workflows/ci.yaml
+├── k8s/
+│   ├── namespace.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── kustomization.yaml
+└── argocd/application.yaml
 ```
 
-## Local test
+## 1. Create the Docker Hub repository
+
+In Docker Hub, create a public repository named:
+
+```text
+basic-gitops-app
+```
+
+## 2. Create a Docker Hub access token
+
+In Docker Hub:
+
+```text
+Account Settings
+→ Personal access tokens
+→ Generate new token
+```
+
+Give it Read and Write permission.
+
+Do not use your Docker Hub account password in GitHub Actions.
+
+## 3. Create the GitHub repository
+
+Create this public GitHub repository:
+
+```text
+basic-gitops-app
+```
+
+The included Argo CD manifest currently uses:
+
+```text
+https://github.com/abdullahmasoodx/basic-gitops-app.git
+```
+
+Change `argocd/application.yaml` if your repository URL is different.
+
+## 4. Add GitHub Actions secrets
+
+Open the GitHub repository:
+
+```text
+Settings
+→ Secrets and variables
+→ Actions
+→ New repository secret
+```
+
+Add these two repository secrets:
+
+```text
+DOCKERHUB_USERNAME
+```
+
+Value example:
+
+```text
+abdullahmasoodx
+```
+
+Add:
+
+```text
+DOCKERHUB_TOKEN
+```
+
+Its value must be your Docker Hub personal access token.
+
+Never commit these values into the repository.
+
+## 5. Push this project to GitHub
 
 ```bash
-pip install -r requirements.txt
-pytest tests -v
-uvicorn main:app --reload
+git init
+git add .
+git commit -m "Initial GitOps starter project"
+git branch -M main
+git remote add origin https://github.com/abdullahmasoodx/basic-gitops-app.git
+git push -u origin main
+```
+
+The first push starts GitHub Actions.
+
+Open:
+
+```text
+GitHub repository → Actions
+```
+
+Wait until the workflow is successful. It will push image tags similar to:
+
+```text
+abdullahmasoodx/basic-gitops-app:a1b2c3d
+abdullahmasoodx/basic-gitops-app:latest
+```
+
+It will also commit the SHA image tag into:
+
+```text
+k8s/deployment.yaml
+```
+
+## 6. Test locally with Docker
+
+```bash
+docker build -t basic-gitops-app:local .
+docker run --rm -p 8000:8000 basic-gitops-app:local
 ```
 
 Open:
@@ -44,162 +142,104 @@ Open:
 ```text
 http://localhost:8000
 http://localhost:8000/health
-http://localhost:8000/version
+http://localhost:8000/docs
 ```
 
-## Docker test
+## 7. Install Argo CD
 
-```bash
-docker build -t private-fastapi-argo-demo:local .
-docker run -p 8000:8000 private-fastapi-argo-demo:local
-```
-
-## GitHub Secrets
-
-Add these secrets in your private GitHub repo:
-
-```text
-DOCKERHUB_USERNAME
-DOCKERHUB_TOKEN
-```
-
-The workflow uses `GITHUB_TOKEN` automatically to commit the updated image tag back to the repo.
-
-In GitHub repo settings, make sure Actions has write permission:
-
-```text
-Settings → Actions → General → Workflow permissions → Read and write permissions
-```
-
-## Private Docker image setup
-
-Create a private Docker Hub repository:
-
-```text
-abdullahmasoodx/private-fastapi-argo-demo
-```
-
-If you use another Docker Hub name, update:
-
-```text
-.github/workflows/gitops-ci.yml
-k8s/*/deployment.yaml
-```
-
-## Kubernetes private image pull secret
-
-Create the image pull secret in every namespace where you deploy.
-
-Dev example:
-
-```bash
-kubectl create namespace private-demo-dev
-kubectl create secret docker-registry dockerhub-secret \
-  --docker-server=https://index.docker.io/v1/ \
-  --docker-username=YOUR_DOCKERHUB_USERNAME \
-  --docker-password=YOUR_DOCKERHUB_TOKEN \
-  --docker-email=YOUR_EMAIL@example.com \
-  -n private-demo-dev
-```
-
-For staging and production, create the same secret in:
-
-```text
-private-demo-staging
-private-demo-production
-```
-
-## Install Argo CD
+Run this only if Argo CD is not installed:
 
 ```bash
 kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+```
+
+Check Argo CD:
+
+```bash
 kubectl get pods -n argocd
 ```
 
-Run UI locally:
+## 8. Register the application in Argo CD
+
+Apply the Argo CD Application manifest:
 
 ```bash
-kubectl port-forward svc/argocd-server -n argocd 8081:443
+kubectl apply -f argocd/application.yaml
+```
+
+Check it:
+
+```bash
+kubectl get applications -n argocd
+```
+
+At first, it should show `OutOfSync`.
+
+Open the Argo CD dashboard and manually click:
+
+```text
+Sync → Synchronize
+```
+
+Manual sync is intentional for this beginner lesson.
+
+## 9. Check Kubernetes
+
+```bash
+kubectl get all -n gitops-basic
+```
+
+Check pods:
+
+```bash
+kubectl get pods -n gitops-basic
+```
+
+## 10. Access the application
+
+```bash
+kubectl port-forward service/basic-gitops-service 8080:80 -n gitops-basic
 ```
 
 Open:
 
 ```text
-https://localhost:8081
+http://localhost:8080
 ```
 
-Get password on PowerShell:
+## 11. Test the GitOps flow
 
-```powershell
-$pass = kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}"
-[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($pass))
-```
-
-Username:
+Change the message inside:
 
 ```text
-admin
+app/main.py
 ```
 
-## Connect private GitHub repo in Argo CD
-
-In Argo CD UI:
-
-```text
-Settings → Repositories → Connect Repo
-```
-
-Use HTTPS and GitHub Personal Access Token.
-
-Repo URL example:
-
-```text
-https://github.com/YOUR_GITHUB_USERNAME/private-fastapi-argo-demo.git
-```
-
-## Create Argo CD application
-
-Before applying the files, update the repo URL in:
-
-```text
-argocd/dev-app.yaml
-argocd/staging-app.yaml
-argocd/production-app.yaml
-```
-
-Apply dev app:
+Commit and push:
 
 ```bash
-kubectl apply -f argocd/dev-app.yaml
+git add .
+git commit -m "Update application message"
+git push
 ```
 
-Check:
-
-```bash
-kubectl get applications -n argocd
-kubectl get pods -n private-demo-dev
-kubectl get svc -n private-demo-dev
-```
-
-## Branch/environment flow
+The flow will be:
 
 ```text
-push dev1 → update k8s/dev → Argo CD deploys dev
-push main → update k8s/staging → Argo CD deploys staging
-Run workflow from main → update k8s/production → Argo CD deploys production
+Git push
+→ GitHub Actions
+→ Docker Hub
+→ Kubernetes manifest updated in Git
+→ Argo CD becomes OutOfSync
+→ Manual Sync
+→ Kubernetes deploys the new image
 ```
 
-## Important security notes
+## Important notes
 
-Do not commit:
-
-```text
-.env
-kubeconfig.yaml
-Test-kubeconfig.yaml
-Docker tokens
-GitHub tokens
-```
-
-Keep secrets in GitHub Secrets or Kubernetes Secrets.
+- Never store Docker Hub credentials in YAML files.
+- `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` must be GitHub repository secrets.
+- Git is the source of truth.
+- During GitOps practice, change Kubernetes configuration in Git rather than using manual `kubectl edit`.
+- If the workflow cannot push its manifest commit, check repository branch protection and GitHub Actions workflow permissions.
