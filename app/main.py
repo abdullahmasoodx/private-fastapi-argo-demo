@@ -13,10 +13,10 @@ app = FastAPI(
 def home() -> dict[str, str]:
     return {
         "message": "Hello from GitOps and Argo CD!",
-        "version": os.getenv("APP_VERSION", "v2"),
+        "version": os.getenv("APP_VERSION", "v2.0.0"),
         "pod": socket.gethostname(),
+        "is_updated": "yes",
     }
-
 
 
 @app.get("/health")
